@@ -1,0 +1,309 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Nico's Nutrition — Montador de Dietas</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
+<style>
+/* ===== MARCA: troque aqui cores e fonte depois ===== */
+:root{--cor:#0b8f45;--amarelo:#fdc82f;--cor2:#e8f5ee;--texto:#222;--borda:#d9d9d9;--fonte:system-ui,Arial,sans-serif}
+*{box-sizing:border-box}
+body{font-family:var(--fonte);color:var(--texto);margin:0;background:#f6f7f6}
+header{background:#fff;border-bottom:4px solid var(--amarelo);text-align:center;padding:10px 16px 0}
+.logo{display:block;margin:0 auto 4px;max-width:360px;width:80%;height:auto}
+nav button{background:none;border:0;color:var(--cor);padding:10px 18px;font-size:15px;cursor:pointer;border-bottom:4px solid transparent;margin-bottom:-4px}
+nav button.on{border-color:var(--cor);font-weight:bold}
+main{max-width:1100px;margin:auto;padding:16px}
+#splash{position:fixed;inset:0;background:#fff;z-index:99;display:flex;align-items:center;justify-content:center;animation:sOut .6s ease 2.4s forwards}
+#splash img{width:min(260px,60vw);opacity:0;animation:sImg 2.4s ease-in-out forwards}
+@keyframes sImg{0%{opacity:0;transform:scale(.85)}35%{opacity:1;transform:scale(1)}70%{opacity:1;transform:scale(1)}100%{opacity:0;transform:scale(1.05)}}
+@keyframes sOut{to{opacity:0;visibility:hidden}}
+section{display:none;background:#fff;border:1px solid var(--borda);border-radius:8px;padding:16px;margin-bottom:16px}
+section.on{display:block}
+label{display:block;font-size:13px;margin-bottom:10px} input,select,textarea{width:100%;padding:8px;border:1px solid var(--borda);border-radius:6px;font:inherit;margin-top:3px}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px}
+button.p{background:var(--cor);color:#fff;border:0;border-radius:6px;padding:10px 16px;cursor:pointer;font-size:15px}
+button.s{background:#fff;border:1px solid var(--borda);border-radius:6px;padding:6px 10px;cursor:pointer}
+.box{background:var(--cor2);border-radius:8px;padding:12px;margin:12px 0}
+.meal{border:1px solid var(--borda);border-radius:8px;padding:12px;margin-bottom:14px}
+.cols{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+@media(max-width:700px){.cols{grid-template-columns:1fr}}
+.res{list-style:none;margin:6px 0 0;padding:0;max-height:240px;overflow:auto;border:1px solid var(--borda);border-radius:6px}
+.res li{padding:7px 9px;cursor:pointer;font-size:13px;border-bottom:1px solid #eee} .res li:hover{background:var(--cor2)}
+.it{display:grid;grid-template-columns:1fr 80px 70px 30px;gap:6px;align-items:center;font-size:13px;margin-bottom:6px}
+.it input{margin:0;padding:5px}
+.mname{font-weight:bold;font-size:16px;width:70%}
+small{color:#666}
+.mac{border:1px solid var(--borda);border-radius:8px;padding:10px}.two{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:6px}.two label{margin:0}
+
+/* ===== Responsividade ===== */
+html{-webkit-text-size-adjust:100%}img{max-width:100%}
+.grid{grid-template-columns:repeat(auto-fit,minmax(min(100%,170px),1fr))}
+.cols>div{min-width:0}.it span{overflow-wrap:anywhere}
+.mh{display:flex;gap:8px;align-items:center}.mh .mname{flex:1;width:auto;min-width:0}
+nav{display:flex;justify-content:center;flex-wrap:wrap}
+.man{margin-top:10px;border:1px dashed var(--cor);border-radius:8px;padding:8px 10px;background:#fcfffd}
+.man summary{cursor:pointer;color:var(--cor);font-weight:600}
+.mgrid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:10px}
+.mgrid label{margin:0}.mgrid .w2{grid-column:1/-1}
+.chk{display:flex;gap:8px;align-items:center}.chk input{width:auto;margin:0}
+@media(max-width:860px){.cols{grid-template-columns:1fr}}
+@media(max-width:600px){
+ main{padding:8px}section{padding:12px;border-radius:6px}
+ .logo{width:72%}
+ nav button{flex:1;padding:10px 6px;font-size:14px}
+ input,select,textarea{font-size:16px;padding:10px}
+ button.p{width:100%;padding:13px}
+ button.s{min-height:40px}
+ .it{grid-template-columns:90px 1fr 42px}.it span{grid-column:1/-1;font-weight:600}
+ .it input{padding:8px}
+ .res{max-height:200px}.res li{padding:11px 10px;font-size:14px}
+ .mgrid{grid-template-columns:1fr}
+ .meal{padding:10px}
+ #dayTot{position:sticky;bottom:0;box-shadow:0 -2px 8px rgba(0,0,0,.12);font-size:13px}
+}
+.pdfs{display:flex;gap:10px;flex-wrap:wrap}.pdfs button{flex:1;min-width:210px}
+</style>
+</head>
+<body>
+<div id="splash"><img src="icone.png" alt="Nico's Nutrition"></div>
+<header><img class="logo" src="logo.png" alt="Nico's Nutrition">
+<nav><button class="on" data-t="a">1. Paciente</button><button data-t="b">2. Refeições</button></nav></header>
+<main>
+<section id="a" class="on">
+ <div class="grid">
+  <label>Nome do paciente<input id="nome"></label>
+  <label>Data de nascimento<input id="nasc" type="date"></label>
+  <label>Altura (cm)<input id="alt" type="number" step="0.1"></label>
+  <label>Peso (kg)<input id="peso" type="number" step="0.1"></label>
+  <label>Sexo biológico<select id="sexo"><option value="F">Feminino</option><option value="M">Masculino</option></select></label>
+  <label>Nível de atividade (fator)<select id="fat">
+   <option value="1.2">Sedentário (1,2)</option><option value="1.375">Leve (1,375)</option><option value="1.55" selected>Moderado (1,55)</option><option value="1.725">Intenso (1,725)</option><option value="1.9">Muito intenso (1,9)</option></select></label>
+  <label>Fórmula de cálculo<select id="form"></select></label>
+  <label id="lbm" style="display:none">Massa magra (kg)<input id="mm" type="number" step="0.1"></label>
+ </div>
+ <button class="p" id="calc">Calcular gasto energético</button>
+ <div class="box" id="res">Preencha os dados e clique em calcular. (Fórmula: Mifflin-St Jeor)</div>
+ <h3>Meta de macronutrientes</h3>
+ <div class="grid"><label>Meta de kcal/dia<input id="mk" type="number"></label></div>
+ <p><small>Percentual e gramas são ligados: alterar um atualiza o outro, com base na meta de kcal.</small></p>
+ <div class="grid">
+  <div class="mac"><b>Proteína</b> <small>(4 kcal/g)</small><div class="two"><label>%<input id="pp" type="number" step="0.1" value="20"></label><label>gramas<input id="mp" type="number" step="0.1"></label></div><small id="kp"></small></div>
+  <div class="mac"><b>Carboidrato</b> <small>(4 kcal/g)</small><div class="two"><label>%<input id="pc" type="number" step="0.1" value="50"></label><label>gramas<input id="mc" type="number" step="0.1"></label></div><small id="kc2"></small></div>
+  <div class="mac"><b>Lipídeo</b> <small>(9 kcal/g)</small><div class="two"><label>%<input id="pl" type="number" step="0.1" value="30"></label><label>gramas<input id="ml" type="number" step="0.1"></label></div><small id="kl"></small></div>
+ </div>
+ <div class="box" id="macroBox">—</div>
+</section>
+<section id="b">
+ <p><small id="status">Carregando tabela TACO…</small>
+ <label style="display:inline-block;margin-left:10px">ou carregue o Excel: <input type="file" id="xl" accept=".xlsx,.xls" style="width:auto"></label></p>
+ <div id="meals"></div>
+ <button class="s" id="addMeal">+ Adicionar refeição</button>
+ <div class="box" id="dayTot"></div>
+ <div class="pdfs"><button class="p" id="pdfS">PDF simples (macros por refeição)</button><button class="p" id="pdfF">PDF completo (todos os nutrientes TACO)</button></div>
+</section>
+</main>
+<script>
+const $=id=>document.getElementById(id);
+const norm=s=>String(s).normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase();
+const num=v=>{const n=parseFloat(String(v).replace(',','.'));return isNaN(n)?0:n};
+const f1=n=>(Math.round(n*10)/10).toLocaleString('pt-BR');
+let foods=[],meals=[],calc={};
+
+// Amostra aproximada (por 100g), usada só se taco.xlsx não for encontrado
+const SAMPLE=[["Arroz, tipo 1, cozido",128,2.5,28.1,0.2],["Feijão, carioca, cozido",76,4.8,13.6,0.5],["Frango, peito, sem pele, grelhado",159,32,0,2.5],["Ovo, de galinha, inteiro, cozido",146,13.3,0.6,9.5],["Banana, prata, crua",98,1.3,26,0.1],["Pão, trigo, francês",300,8,58.6,3.1],["Leite, de vaca, integral",61,3.2,4.6,3.3],["Aveia, flocos, crua",394,13.9,66.6,8.5],["Batata, doce, cozida",77,0.6,18.4,0.1],["Azeite, de oliva, extra virgem",884,0,0,100],["Maçã, Fuji, com casca, crua",56,0.3,15.2,0],["Carne, bovina, patinho, grelhado",219,35.9,0,7.3],["Queijo, mozarela",330,22.6,3,25.2],["Alface, crespa, crua",11,1.3,1.7,0.2],["Tomate, com semente, cru",15,1.1,3.1,0.2]].map(a=>({n:a[0],k:a[1],p:a[2],c:a[3],l:a[4]}));
+
+let custom=[];try{custom=JSON.parse(localStorage.getItem('nn_custom')||'[]')}catch(e){}
+const saveCustom=()=>{try{localStorage.setItem('nn_custom',JSON.stringify(custom))}catch(e){}};
+const withCustom=()=>custom.forEach(c=>{if(!foods.some(f=>norm(f.n)==norm(c.n)))foods.push(c)});
+function parseWB(wb){
+ const rows=XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]],{header:1,defval:''});
+ const hi=rows.findIndex(r=>r.some(c=>norm(c).includes('descri')));
+ if(hi<0)throw new Error('Cabeçalho "Descrição" não encontrado');
+ const hd=rows[hi].map(c=>String(c).trim()),h=hd.map(norm),find=(...k)=>h.findIndex(x=>k.every(y=>x.includes(y)));
+ const C={n:find('descri'),k:find('energia','kcal'),p:find('prote'),l:find('lip'),c:find('carbo')},ci=find('categoria');
+ if(Object.values(C).some(v=>v<0))throw new Error('Colunas não encontradas: '+JSON.stringify(C));
+ const ex=hd.map((x,j)=>j).filter(j=>hd[j]&&!/numero|categoria|descri/.test(h[j]));
+ foods=rows.slice(hi+1).filter(r=>r[C.n]&&String(r[C.n]).trim()).map(r=>{const v={};ex.forEach(j=>v[hd[j]]=r[j]);
+  return{n:String(r[C.n]).trim(),cat:ci>=0?String(r[ci]):'',k:num(r[C.k]),p:num(r[C.p]),c:num(r[C.c]),l:num(r[C.l]),v}});
+ $('status').textContent='Tabela carregada: '+foods.length+' alimentos.';
+}
+async function loadTaco(){await loadTaco0();withCustom()}
+async function loadTaco0(){
+ try{const r=await fetch('taco.xlsx');if(!r.ok)throw 0;parseWB(XLSX.read(await r.arrayBuffer()));}
+ catch(e){foods=SAMPLE;$('status').textContent='taco.xlsx não encontrado — usando lista de exemplo ('+SAMPLE.length+' itens). Coloque seu taco.xlsx na pasta do site ou carregue ao lado.';}
+}
+$('xl').onchange=async e=>{try{parseWB(XLSX.read(await e.target.files[0].arrayBuffer()));withCustom()}catch(x){alert(x.message)}};
+
+// Abas
+document.querySelectorAll('nav button').forEach(b=>b.onclick=()=>{
+ document.querySelectorAll('nav button,section').forEach(x=>x.classList.remove('on'));
+ b.classList.add('on');$(b.dataset.t).classList.add('on')});
+
+// Cálculo energético
+function idade(d){const n=new Date(d),h=new Date();let a=h.getFullYear()-n.getFullYear();if(h<new Date(h.getFullYear(),n.getMonth(),n.getDate()))a--;return a}
+const FORM={
+ mifflin:['Mifflin-St Jeor',(s,w,h,a)=>10*w+6.25*h-5*a+(s=='M'?5:-161)],
+ hb84:['Harris-Benedict revisada (1984)',(s,w,h,a)=>s=='M'?88.362+13.397*w+4.799*h-5.677*a:447.593+9.247*w+3.098*h-4.33*a],
+ hb19:['Harris-Benedict original (1919)',(s,w,h,a)=>s=='M'?66.47+13.75*w+5.003*h-6.755*a:655.1+9.563*w+1.85*h-4.676*a],
+ fao:['FAO/OMS/ONU (Schofield, 10+ anos)',(s,w,h,a)=>{const M=s=='M';
+  if(a<10)return null;
+  if(a<18)return M?17.686*w+658.2:13.384*w+692.6;
+  if(a<30)return M?15.057*w+692.2:14.818*w+486.6;
+  if(a<60)return M?11.472*w+873.1:8.126*w+845.6;
+  return M?11.711*w+587.7:9.082*w+658.5}],
+ owen:['Owen',(s,w)=>s=='M'?879+10.2*w:795+7.18*w],
+ cunn:['Cunningham (usa massa magra)',(s,w,h,a,m)=>500+22*m],
+ katch:['Katch-McArdle (usa massa magra)',(s,w,h,a,m)=>370+21.6*m]
+};
+$('form').innerHTML=Object.entries(FORM).map(([k,v])=>`<option value="${k}">${v[0]}</option>`).join('');
+const usaMM=()=>['cunn','katch'].includes($('form').value);
+$('form').onchange=()=>$('lbm').style.display=usaMM()?'block':'none';
+let mkManual=false;
+$('calc').onclick=()=>{
+ const a=idade($('nasc').value),h=num($('alt').value),w=num($('peso').value),mm=num($('mm').value);
+ if(!$('nasc').value||!h||!w)return alert('Preencha data de nascimento, altura e peso.');
+ if(usaMM()&&!mm)return alert('Esta fórmula precisa da massa magra (kg).');
+ const [nome,fn]=FORM[$('form').value],tmb=fn($('sexo').value,w,h,a,mm);
+ if(tmb==null)return alert('Esta fórmula não se aplica a esta idade. Escolha outra.');
+ const get=tmb*num($('fat').value);
+ calc={a,tmb,get,nome};
+ $('res').innerHTML=`Fórmula: <b>${nome}</b><br>Idade: <b>${a} anos</b> · TMB: <b>${Math.round(tmb)} kcal</b> · Gasto total (GET): <b>${Math.round(get)} kcal</b>`;
+ if(!mkManual||!$('mk').value)$('mk').value=Math.round(get);
+ ['p','c','l'].forEach(pctToG);macros();
+};
+const MAC={p:4,c:4,l:9},r1=n=>Math.round(n*10)/10,kcal=()=>num($('mk').value);
+const pctToG=x=>{$('m'+x).value=r1(num($('p'+x).value)*kcal()/100/MAC[x])};
+const gToPct=x=>{const k=kcal();if(k)$('p'+x).value=r1(num($('m'+x).value)*MAC[x]*100/k)};
+function macros(){
+ const k=kcal(),u=['p','c','l'].reduce((a,x)=>a+num($('m'+x).value)*MAC[x],0),pc=['p','c','l'].reduce((a,x)=>a+num($('p'+x).value),0);
+ $('kp').textContent=Math.round(num($('mp').value)*4)+' kcal';$('kc2').textContent=Math.round(num($('mc').value)*4)+' kcal';$('kl').textContent=Math.round(num($('ml').value)*9)+' kcal';
+ const ok=Math.abs(pc-100)<0.05;
+ $('macroBox').innerHTML=`Usado: <b>${Math.round(u)} kcal</b> de ${k||0} · Restam: <b>${Math.round(k-u)} kcal</b> · Soma: <b style="color:${ok?'inherit':'#c0392b'}">${r1(pc)}%</b>${ok?'':' <small>(ideal: 100%)</small>'}`;
+ dayTotals();
+}
+['p','c','l'].forEach(x=>{$('p'+x).oninput=()=>{pctToG(x);macros()};$('m'+x).oninput=()=>{gToPct(x);macros()}});
+$('mk').oninput=()=>{mkManual=true;['p','c','l'].forEach(pctToG);macros()};
+
+// Refeições
+function addMeal(){
+ const m={name:'Refeição '+(meals.length+1),obs:'',items:[]};meals.push(m);
+ const d=document.createElement('div');d.className='meal';
+ d.innerHTML=`<div class="mh"><input class="mname"><button class="s rm">Remover</button></div>
+ <div class="cols" style="margin-top:10px"><div><input class="q" placeholder="🔍 Buscar alimento (TACO)…"><ul class="res"></ul>
+ <details class="man"><summary>➕ Adicionar alimento manualmente</summary>
+  <div class="mgrid"><small class="w2">Informe os valores por 100 g do alimento. Se deixar as kcal vazias, calculo pelos macros (4/4/9).</small>
+  <label class="w2">Nome<input class="mn" placeholder="Ex.: Whey protein"></label>
+  <label>kcal / 100 g<input class="mkc" type="number" step="0.1" min="0"></label>
+  <label>Proteína (g)<input class="mpr" type="number" step="0.1" min="0"></label>
+  <label>Carboidrato (g)<input class="mca" type="number" step="0.1" min="0"></label>
+  <label>Lipídeo (g)<input class="mli" type="number" step="0.1" min="0"></label>
+  <label class="w2">Quantidade nesta refeição (g)<input class="mg" type="number" min="0" value="100"></label>
+  <label class="w2 chk"><input type="checkbox" class="msv"> Salvar para aparecer nas buscas</label>
+  <button class="s w2 madd">Adicionar à refeição</button></div></details></div>
+ <div><div class="items"></div><label>Observações<textarea class="obs" rows="2"></textarea></label><div class="box mt"></div></div></div>`;
+ $('meals').appendChild(d);m.el=d;
+ const nm=d.querySelector('.mname');nm.value=m.name;nm.oninput=()=>m.name=nm.value;
+ d.querySelector('.obs').oninput=e=>m.obs=e.target.value;
+ d.querySelector('.rm').onclick=()=>{meals.splice(meals.indexOf(m),1);d.remove();dayTotals()};
+ const q=d.querySelector('.q'),ul=d.querySelector('.res');
+ q.oninput=()=>{const t=norm(q.value);ul.innerHTML='';if(t.length<2)return;
+  foods.filter(f=>norm(f.n).includes(t)).slice(0,40).forEach(f=>{const li=document.createElement('li');
+   li.innerHTML=`${f.manual?'⭐ ':''}${f.n} <small>(${Math.round(f.k)} kcal/100g)</small>`;
+   li.onclick=()=>{if(m.items.some(i=>i.f===f))return alert('Esse alimento já está nesta refeição.');m.items.push({f,g:100});refresh(m)};
+   ul.appendChild(li)})};
+ const man=d.querySelector('.man'),gv=c=>num(man.querySelector(c).value);
+ man.querySelector('.madd').onclick=()=>{
+  const n=man.querySelector('.mn').value.trim();if(!n)return alert('Informe o nome do alimento.');
+  const p=gv('.mpr'),c=gv('.mca'),l=gv('.mli');let k=gv('.mkc');if(!k)k=p*4+c*4+l*9;
+  if(!k)return alert('Informe as calorias ou ao menos um macronutriente.');
+  if(m.items.some(i=>norm(i.f.n)==norm(n)))return alert('Esse alimento já está nesta refeição.');
+  const f={n,k,p,c,l,manual:true};
+  if(man.querySelector('.msv').checked&&!foods.some(x=>norm(x.n)==norm(n))){foods.push(f);custom.push(f);saveCustom()}
+  m.items.push({f,g:gv('.mg')||100});refresh(m);
+  man.querySelectorAll('.mn,input[type=number]').forEach(i=>i.value='');man.querySelector('.mg').value=100;
+ };
+ refresh(m);
+}
+function refresh(m){
+ const box=m.el.querySelector('.items');box.innerHTML='';
+ m.items.forEach(it=>{const r=document.createElement('div');r.className='it';
+  r.innerHTML=`<span>${it.f.n}</span><input type="number" min="0" value="${it.g}"><b class="kc"></b><button class="s">✕</button>`;
+  const kc=r.querySelector('.kc'),upd=()=>kc.textContent=Math.round(it.f.k*it.g/100)+' kcal';upd();
+  r.querySelector('input').oninput=e=>{it.g=num(e.target.value);upd();tot(m)};
+  r.querySelector('button').onclick=()=>{m.items.splice(m.items.indexOf(it),1);refresh(m)};
+  box.appendChild(r)});
+ tot(m);
+}
+const sum=items=>items.reduce((a,i)=>{const x=i.g/100;a.k+=i.f.k*x;a.p+=i.f.p*x;a.c+=i.f.c*x;a.l+=i.f.l*x;return a},{k:0,p:0,c:0,l:0});
+function tot(m){const t=sum(m.items);m.el.querySelector('.mt').innerHTML=`<b>${Math.round(t.k)} kcal</b> · P ${f1(t.p)}g · C ${f1(t.c)}g · L ${f1(t.l)}g`;dayTotals()}
+function dayTotals(){
+ const t=sum(meals.flatMap(m=>m.items)),k=num($('mk').value);
+ $('dayTot').innerHTML=`<b>Total do dia: ${Math.round(t.k)} kcal</b>${k?` (meta ${k})`:''} · P ${f1(t.p)}g/${num($('mp').value)}g · C ${f1(t.c)}g/${num($('mc').value)}g · L ${f1(t.l)}g/${num($('ml').value)}g`;
+}
+$('addMeal').onclick=addMeal;
+
+// PDF
+const GROUPS=[
+ ['Composição geral',['Umidade (%)','Energia (kcal)','Energia (kJ)','Proteína (g)','Lipídeos (g)','Colesterol (mg)','Carboidrato (g)','Fibra Alimentar (g)','Cinzas (g)']],
+ ['Minerais',['Cálcio (mg)','Magnésio (mg)','Manganês (mg)','Fósforo (mg)','Ferro (mg)','Sódio (mg)','Potássio (mg)','Cobre (mg)','Zinco (mg)']],
+ ['Vitaminas',['Retinol (mcg)','RE (mcg)','RAE (mcg)','Tiamina (mg)','Riboflavina (mg)','Piridoxina (mg)','Niacina (mg)','Vitamina C (mg)']]];
+const MK={'Energia (kcal)':'k','Proteína (g)':'p','Lipídeos (g)':'l','Carboidrato (g)':'c'},NI='Não informado';
+const fr=n=>n.toLocaleString('pt-BR',{maximumFractionDigits:2});
+// valor numérico (para somar) ou null
+const cn=(f,lb,g)=>f.v?(typeof f.v[lb]==='number'?f.v[lb]*g/100:null):(MK[lb]?f[MK[lb]]*g/100:null);
+// texto exibido: número proporcional à quantidade; Tr/NA/* como na TACO; manual = "Não informado"
+const ct=(f,lb,g)=>{const n=cn(f,lb,g);if(n!=null)return fr(n);if(!f.v)return NI;const t=String(f.v[lb]==null?'':f.v[lb]).trim();return t||'-'};
+function gTable(doc,y,ti,lb,items,only){
+ const body=only?[]:items.map(i=>[i.f.n,i.g,...lb.map(l=>ct(i.f,l,i.g))]);
+ const tot=lb.map(l=>{const v=items.map(i=>cn(i.f,l,i.g)).filter(x=>x!=null);return{content:v.length?fr(v.reduce((a,b)=>a+b,0)):'-',styles:{fontStyle:'bold'}}});
+ body.push([{content:only?'Total do dia':'Total',styles:{fontStyle:'bold'}},'',...tot]);
+ doc.autoTable({startY:y+1,head:[[ti,'Qtd (g)',...lb]],body,headStyles:{fillColor:[11,143,69],fontSize:7},styles:{fontSize:7.5,cellPadding:1.5},columnStyles:{0:{cellWidth:62}}});
+ return doc.lastAutoTable.finalY;
+}
+function makePDF(full){
+ const doc=new jspdf.jsPDF({orientation:full?'l':'p'}),W=doc.internal.pageSize.width,H=doc.internal.pageSize.height;let y=18;
+ const need=n=>{if(y+n>H-14){doc.addPage();y=18}};
+ doc.setFontSize(18);doc.text(full?'Plano Alimentar — Composição completa (TACO)':'Plano Alimentar',14,y);y+=9;
+ doc.setFontSize(11);
+ const nasc=$('nasc').value?new Date($('nasc').value+'T00:00').toLocaleDateString('pt-BR'):'-';
+ [`Paciente: ${$('nome').value||'-'}`,`Nascimento: ${nasc}${calc.a!=null?' ('+calc.a+' anos)':''}  ·  Sexo: ${$('sexo').value=='M'?'Masculino':'Feminino'}`,
+  `Altura: ${$('alt').value||'-'} cm  ·  Peso: ${$('peso').value||'-'} kg`,
+  calc.tmb?`TMB (${calc.nome}): ${Math.round(calc.tmb)} kcal  ·  GET: ${Math.round(calc.get)} kcal`:'',
+  `Meta: ${$('mk').value||'-'} kcal  ·  P ${$('mp').value||0}g (${$('pp').value||0}%)  ·  C ${$('mc').value||0}g (${$('pc').value||0}%)  ·  L ${$('ml').value||0}g (${$('pl').value||0}%)`
+ ].filter(Boolean).forEach(l=>{doc.text(l,14,y);y+=6});
+ y+=4;
+ meals.forEach(m=>{
+  if(!full){
+   const t=sum(m.items);
+   doc.autoTable({startY:y,head:[[m.name,'Qtd (g)','kcal','P (g)','C (g)','L (g)']],
+    body:[...m.items.map(i=>{const x=i.g/100;return[i.f.n,i.g,Math.round(i.f.k*x),f1(i.f.p*x),f1(i.f.c*x),f1(i.f.l*x)]}),
+     [{content:'Total',styles:{fontStyle:'bold'}},'',{content:Math.round(t.k),styles:{fontStyle:'bold'}},f1(t.p),f1(t.c),f1(t.l)]],
+    headStyles:{fillColor:[11,143,69]},styles:{fontSize:9},columnStyles:{0:{cellWidth:80}}});
+   y=doc.lastAutoTable.finalY+4;
+  }else{
+   need(45);doc.setFontSize(13);doc.setFont(undefined,'bold');doc.text(m.name,14,y);doc.setFont(undefined,'normal');y+=2;
+   if(!m.items.length){doc.setFontSize(9);doc.text('Nenhum alimento adicionado.',14,y+5);y+=10}
+   else GROUPS.forEach(([ti,lb])=>{need(30);y=gTable(doc,y,ti,lb,m.items,false)+3});
+  }
+  if(m.obs.trim()){doc.setFontSize(9);const ls=doc.splitTextToSize('Obs.: '+m.obs,W-28);
+   need(ls.length*4+4);doc.text(ls,14,y);y+=ls.length*4+2}
+  y+=4;need(20);
+ });
+ const d=sum(meals.flatMap(m=>m.items)),all=meals.flatMap(m=>m.items);
+ if(full&&all.length){need(45);doc.setFontSize(13);doc.setFont(undefined,'bold');doc.text('Total do dia',14,y);doc.setFont(undefined,'normal');y+=2;
+  GROUPS.forEach(([ti,lb])=>{need(25);y=gTable(doc,y,ti,lb,all,true)+3})}
+ need(14);doc.setFontSize(12);doc.text(`Total do dia: ${Math.round(d.k)} kcal | P ${f1(d.p)}g | C ${f1(d.c)}g | L ${f1(d.l)}g`,14,y);y+=8;
+ if(full){doc.setFontSize(8);const nt=doc.splitTextToSize('Valores da TACO (por 100 g) recalculados para a quantidade informada. Tr = traço; NA = não aplicável; * = análise sendo reavaliada; "-" = análise não solicitada (em branco na TACO). "Não informado" = alimento adicionado manualmente. Valores não numéricos não entram nas somas.',W-28);need(nt.length*4);doc.text(nt,14,y)}
+ doc.save(`dieta${full?'-completa':''}-${($('nome').value||'paciente').replace(/\s+/g,'_')}.pdf`);
+}
+$('pdfS').onclick=()=>makePDF(false);$('pdfF').onclick=()=>makePDF(true);
+
+setTimeout(()=>$('splash').remove(),3100);
+loadTaco();addMeal();macros();
+</script>
+</body>
+</html>
