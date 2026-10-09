@@ -70,6 +70,10 @@ nav{display:flex;justify-content:center;flex-wrap:wrap}
 .goal label{display:flex;align-items:center;gap:6px;margin:0}.goal .pct{width:76px;margin:0;padding:6px}
 .nut{grid-column:1/-1;font-size:12px;color:#555;margin-top:-2px}.nut summary{cursor:pointer;color:var(--cor)}
 .ng{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:2px 10px;margin:4px 0 6px}
+.it{grid-template-columns:1fr auto 36px}
+.qty{grid-column:1/-1;display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+.qty input{width:84px}.qty select{width:auto;padding:6px;margin:0}.qty .dd{width:112px}.qty small{color:#666}
+@media(max-width:600px){.it{grid-template-columns:1fr auto 42px}.it span{grid-column:auto}.qty input,.qty select{font-size:16px}}
 </style>
 </head>
 <body>
@@ -273,12 +277,18 @@ function addMeal(){
 }
 function refresh(m){
  const box=m.el.querySelector('.items');box.innerHTML='';
- m.items.forEach(it=>{const r=document.createElement('div');r.className='it';
-  r.innerHTML=`<span>${it.f.n}</span><input type="number" min="0" value="${it.g}"><b class="kc"></b><button class="s">✕</button><div class="nut"></div>`;
+ m.items.forEach(it=>{const r=document.createElement('div');r.className='it';it.mode=it.mode||'g';if(it.q==null)it.q=it.g;
+  r.innerHTML=`<span>${it.f.n}</span><b class="kc"></b><button class="s">✕</button><div class="qty"><input type="number" min="0" step="any" value="${it.q}"><select><option value="g">g</option><option value="mg">mg</option><option value="ml">ml</option><option value="un">unidades</option></select><input class="dd" type="number" min="0" step="any" style="display:none"><small class="eqg"></small></div><div class="nut"></div>`;
   let op=false;r.addEventListener('toggle',e=>op=e.target.open,true);const nu=r.querySelector('.nut');
   const kc=r.querySelector('.kc'),upd=()=>{kc.textContent=Math.round(it.f.k*it.g/100)+' kcal';const f=it.f,g=it.g,x=g/100;
    nu.innerHTML=`P ${f1(f.p*x)} g · C ${f1(f.c*x)} g · L ${f1(f.l*x)} g${fib(f,g)}`+(f.v?`<details${op?' open':''}><summary>Todos os nutrientes (TACO)</summary><div class="ng">${GROUPS.flatMap(G=>G[1]).map(l=>`<span>${l}: <b>${ct(f,l,g)}</b></span>`).join('')}</div></details>`:' · <i>demais nutrientes não informados</i>')};upd();
-  r.querySelector('input').oninput=e=>{it.g=num(e.target.value);upd();tot(m)};
+  const qi=r.querySelector('.qty input'),dd=r.querySelector('.dd'),se=r.querySelector('select'),eq=r.querySelector('.eqg');
+  se.value=it.mode;dd.value=it.d||'';
+  const cg=()=>{it.mode=se.value;it.q=num(qi.value);it.d=num(dd.value)||undefined;
+   dd.style.display=(it.mode=='ml'||it.mode=='un')?'':'none';dd.placeholder=it.mode=='ml'?'g por ml (1)':'g por unidade';
+   it.g=toG(it);eq.textContent=it.mode=='g'?'':'= '+fr(it.g)+' g'};
+  cg();upd();
+  qi.oninput=dd.oninput=se.onchange=()=>{cg();upd();tot(m)};
   r.querySelector('button').onclick=()=>{m.items.splice(m.items.indexOf(it),1);refresh(m)};
   box.appendChild(r)});
  tot(m);
@@ -374,6 +384,8 @@ $('pa').oninput=pcalc;$('ps').oninput=()=>{pdrive='w';pcalc()};$('pd').oninput=(
 $('peso').addEventListener('input',pcalc);
 $('papp').onclick=()=>{if(!psug)return alert('Calcule o gasto energético e defina a meta de peso primeiro.');
  $('mk').value=Math.round(psug);mkManual=true;['p','c','l'].forEach(pctToG);macros()};
+const toG=it=>{const q=it.q||0;return it.mode=='mg'?q/1000:it.mode=='ml'?q*(it.d||1):it.mode=='un'?q*(it.d||0):q};
+const qtxt=it=>{const q=fr(it.q||0);return it.mode=='mg'?q+' mg':it.mode=='ml'?q+' ml':it.mode=='un'?q+(it.q==1?' unidade':' unidades')+(it.d?' ('+fr(it.g)+' g)':''):q+' g'};
 let LOGO=null;
 fetch('logo.png').then(r=>r.blob()).then(b=>{const f=new FileReader();f.onload=()=>LOGO=f.result;f.readAsDataURL(b)}).catch(()=>{});
 const r1b=n=>Math.round(n*10)/10;
@@ -406,10 +418,10 @@ function simplePDF(prev){
  meals.forEach(m=>{
   doc.autoTable({startY:y,theme:'plain',pageBreak:'avoid',margin:{left:14,right:14,bottom:20},
    head:[[m.name,'Quantidade']],
-   body:m.items.length?m.items.map(i=>[i.f.n,i.g+' g']):[[{content:'Sem alimentos nesta refeição',colSpan:2,styles:{fontStyle:'italic',textColor:150}}]],
+   body:m.items.length?m.items.map(i=>[i.f.n,qtxt(i)]):[[{content:'Sem alimentos nesta refeição',colSpan:2,styles:{fontStyle:'italic',textColor:150}}]],
    headStyles:{fillColor:G,textColor:255,fontSize:12,fontStyle:'bold',cellPadding:{top:3,bottom:3,left:4,right:4}},
    bodyStyles:{fontSize:10.5,textColor:50,cellPadding:{top:2.6,bottom:2.6,left:4,right:4},lineColor:[225,225,225],lineWidth:{bottom:0.2}},
-   alternateRowStyles:{fillColor:[246,251,248]},columnStyles:{1:{cellWidth:35,halign:'right'}},
+   alternateRowStyles:{fillColor:[246,251,248]},columnStyles:{1:{cellWidth:48,halign:'right'}},
    didParseCell:d=>{if(d.section==='head'&&d.column.index===1)d.cell.styles.halign='right'}});
   y=doc.lastAutoTable.finalY+2;
   if(m.obs.trim()){doc.setFontSize(9.5);doc.setFont(undefined,'italic');doc.setTextColor(90);
@@ -430,7 +442,7 @@ const FIELDS=['nome','nasc','alt','peso','sexo','fat','form','mm','mk','pp','pc'
 const esc=t=>String(t).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 let curId=null;
 const snap=()=>({fields:Object.fromEntries(FIELDS.map(i=>[i,$(i).value])),res:$('res').innerHTML,calc,
- meals:meals.map(m=>({name:m.name,obs:m.obs,pct:m.pct,items:m.items.map(i=>({n:i.f.n,g:i.g,m:i.f.manual?i.f:undefined}))}))});
+ meals:meals.map(m=>({name:m.name,obs:m.obs,pct:m.pct,items:m.items.map(i=>({n:i.f.n,g:i.g,mo:i.mode,q:i.q,d:i.d,m:i.f.manual?i.f:undefined}))}))});
 async function saveDiet(){
  const nome=$('nome').value.trim();if(!nome)return alert('Informe o nome do paciente na aba Paciente.');
  try{
@@ -449,7 +461,7 @@ function loadDiet(r){
  $('meals').innerHTML='';meals.length=0;
  D.meals.forEach(x=>{addMeal();const m=meals[meals.length-1];m.name=x.name;m.obs=x.obs;
   m.el.querySelector('.mname').value=x.name;m.el.querySelector('.obs').value=x.obs;
-  m.items=x.items.map(i=>({f:foods.find(f=>norm(f.n)==norm(i.n))||i.m||{n:i.n,k:0,p:0,c:0,l:0,manual:true},g:i.g}));refresh(m)});
+  m.items=x.items.map(i=>({f:foods.find(f=>norm(f.n)==norm(i.n))||i.m||{n:i.n,k:0,p:0,c:0,l:0,manual:true},g:i.g,mode:i.mo,q:i.q,d:i.d}));refresh(m)});
  D.meals.forEach((x,i)=>meals[i].pct=x.pct);if(meals.some(m=>m.pct==null||isNaN(m.pct)))equalize();
  curId=r.id;macros();document.querySelector('nav button[data-t=b]').click();
 }
