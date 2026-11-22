@@ -74,6 +74,14 @@ nav{display:flex;justify-content:center;flex-wrap:wrap}
 .qty{grid-column:1/-1;display:flex;gap:6px;align-items:center;flex-wrap:wrap}
 .qty input{width:84px}.qty select{width:auto;padding:6px;margin:0}.qty .dd{width:112px}.qty small{color:#666}
 @media(max-width:600px){.it{grid-template-columns:1fr auto 42px}.it span{grid-column:auto}.qty input,.qty select{font-size:16px}}
+.orrow{display:grid;grid-template-columns:1fr auto 1fr;gap:6px;align-items:start;border:1px solid var(--amarelo);background:#fffdf3;border-radius:8px;padding:6px;margin-bottom:8px}
+.orrow .it{min-width:0;margin:0}.orb2{align-self:center;font-weight:bold;color:#7a5c00;background:var(--amarelo);border-radius:20px;padding:4px 9px;font-size:12px}
+.ordiff{grid-column:1/-1;font-size:12px;border-top:1px dashed var(--amarelo);padding-top:4px}
+.pend{display:none;background:#fff6d6;border:1px solid var(--amarelo);border-radius:8px;padding:8px;margin-bottom:8px;gap:8px;align-items:center;justify-content:space-between;font-size:13px}
+.ordiv{text-align:center;font-weight:bold;color:#7a5c00;background:#fff6d6;border-radius:6px;padding:5px;margin-bottom:8px}
+.meal:not(.oru) .ordiv{display:none}.meal.oru{border-left:6px solid var(--amarelo)}
+.orm.on{background:var(--amarelo);font-weight:bold}.orb{margin-left:auto}
+@media(max-width:700px){.orrow{grid-template-columns:1fr}.orb2{justify-self:center}}
 </style>
 </head>
 <body>
@@ -233,11 +241,11 @@ $('mk').oninput=()=>{mkManual=true;['p','c','l'].forEach(pctToG);macros()};
 
 // Refeições
 function addMeal(){
- const m={name:'Refeição '+(meals.length+1),obs:'',items:[],pct:Math.max(0,100-meals.reduce((a,x)=>a+x.pct,0))};meals.push(m);
+ const m={name:'Refeição '+(meals.length+1),obs:'',items:[],pct:Math.max(0,100-groups().reduce((a,g)=>a+g[0].pct,0))};meals.push(m);
  const d=document.createElement('div');d.className='meal';
- d.innerHTML=`<div class="mh"><input class="mname"><button class="s up" title="Mover para cima">▲</button><button class="s dn" title="Mover para baixo">▼</button><button class="s rm">Remover</button></div>
+ d.innerHTML=`<div class="ordiv">— OU: opção alternativa da refeição acima —</div><div class="mh"><input class="mname"><button class="s up" title="Mover para cima">▲</button><button class="s dn" title="Mover para baixo">▼</button><button class="s orm" title="Marcar como opção OU da refeição acima">OU</button><button class="s rm">Remover</button></div>
  <div class="goal"><label>% das kcal do dia <input class="pct" type="number" min="0" max="100" step="1"></label><span class="gk"></span></div>
- <div class="cols" style="margin-top:10px"><div><input class="q" placeholder="🔍 Buscar alimento (TACO)…"><ul class="res"></ul>
+ <div class="cols" style="margin-top:10px"><div><div class="pend"></div><input class="q" placeholder="🔍 Buscar alimento (TACO)…"><ul class="res"></ul>
  <details class="man"><summary>➕ Adicionar alimento manualmente</summary>
   <div class="mgrid"><small class="w2">Informe os valores por 100 g do alimento. Se deixar as kcal vazias, calculo pelos macros (4/4/9).</small>
   <label class="w2">Nome<input class="mn" placeholder="Ex.: Whey protein"></label>
@@ -253,14 +261,15 @@ function addMeal(){
  const nm=d.querySelector('.mname');nm.value=m.name;nm.oninput=()=>m.name=nm.value;
  d.querySelector('.pct').oninput=e=>{setPct(m,num(e.target.value));dayTotals()};
  d.querySelector('.obs').oninput=e=>m.obs=e.target.value;
- d.querySelector('.rm').onclick=()=>{meals.splice(meals.indexOf(m),1);d.remove();dayTotals()};
- const mv=dir=>{const i=meals.indexOf(m),j=i+dir;if(j<0||j>=meals.length)return;[meals[i],meals[j]]=[meals[j],meals[i]];meals.forEach(x=>$('meals').appendChild(x.el))};
+ d.querySelector('.rm').onclick=()=>{meals.splice(meals.indexOf(m),1);d.remove();if(meals[0]&&meals[0].or)meals[0].or=false;meals.forEach(orUi);dayTotals()};
+ const mv=dir=>{const i=meals.indexOf(m),j=i+dir;if(j<0||j>=meals.length)return;[meals[i],meals[j]]=[meals[j],meals[i]];meals.forEach(x=>$('meals').appendChild(x.el));if(meals[0].or)meals[0].or=false;meals.forEach(orUi);dayTotals()};
  d.querySelector('.up').onclick=()=>mv(-1);d.querySelector('.dn').onclick=()=>mv(1);
+ d.querySelector('.orm').onclick=()=>{const i=meals.indexOf(m);if(i==0)return alert('A primeira refeição é a opção 1; marque OU a partir da segunda.');m.or=!m.or;if(m.or)m.pct=meals[i-1].pct;orUi(m);dayTotals()};
  const q=d.querySelector('.q'),ul=d.querySelector('.res');
  q.oninput=()=>{const t=norm(q.value);ul.innerHTML='';if(t.length<2)return;
   foods.filter(f=>norm(f.n).includes(t)).slice(0,40).forEach(f=>{const li=document.createElement('li');
    li.innerHTML=`${f.manual?'⭐ ':''}${f.n} <small>(${Math.round(f.k)} kcal/100g)</small>`;
-   li.onclick=()=>{if(m.items.some(i=>i.f===f))return alert('Esse alimento já está nesta refeição.');m.items.push({f,g:100});refresh(m)};
+   li.onclick=()=>addFood(m,f,100);
    ul.appendChild(li)})};
  const man=d.querySelector('.man'),gv=c=>num(man.querySelector(c).value);
  man.querySelector('.madd').onclick=()=>{
@@ -270,18 +279,41 @@ function addMeal(){
   if(m.items.some(i=>norm(i.f.n)==norm(n)))return alert('Esse alimento já está nesta refeição.');
   const f={n,k,p,c,l,manual:true};
   if(man.querySelector('.msv').checked&&!foods.some(x=>norm(x.n)==norm(n))){foods.push(f);custom.push(f);saveCustom()}
-  m.items.push({f,g:gv('.mg')||100});refresh(m);
+  addFood(m,f,gv('.mg')||100);
   man.querySelectorAll('.mn,input[type=number]').forEach(i=>i.value='');man.querySelector('.mg').value=100;
  };
  refresh(m);
 }
+function groups(){const g=[];meals.forEach(m=>{if(m.or&&g.length)g[g.length-1].push(m);else g.push([m])});return g}
+const pick=(items,k)=>items.map(i=>k==1&&i.alt?i.alt:i);
+const scen=k=>groups().flatMap(g=>pick(g[k==1&&g.length>1?1:0].items,k));
+const hasOr=()=>meals.some(m=>m.or||m.items.some(i=>i.alt));
+const sg=n=>(n>0.05?'+':n<-0.05?'−':'±')+f1(Math.abs(n));
+const dif=(b,a)=>`<b style="color:${b.k-a.k>0.5?'#c0392b':b.k-a.k<-0.5?'#0b8f45':'inherit'}">${sg(Math.round(b.k-a.k))} kcal</b> · P ${sg(b.p-a.p)} g · C ${sg(b.c-a.c)} g · L ${sg(b.l-a.l)} g`;
+function orUi(m){m.el.classList.toggle('oru',!!m.or);m.el.querySelector('.orm').classList.toggle('on',!!m.or)}
+function pendUi(m){const b=m.el.querySelector('.pend');b.style.display=m.pend?'flex':'none';
+ if(m.pend){b.innerHTML=`<span>Escolha o alimento <b>OU</b> alternativo para <b>${esc(m.pend.f.n)}</b>: busque abaixo ou adicione manualmente.</span><button class="s">Cancelar</button>`;b.querySelector('button').onclick=()=>{m.pend=null;pendUi(m)}}}
+function addFood(m,f,g){
+ if(m.items.flatMap(i=>[i,i.alt]).filter(Boolean).some(i=>norm(i.f.n)==norm(f.n)))return alert('Esse alimento já está nesta refeição.');
+ if(m.pend){m.pend.alt={f,g};m.pend=null;pendUi(m)}else m.items.push({f,g});
+ refresh(m);
+}
 function refresh(m){
  const box=m.el.querySelector('.items');box.innerHTML='';
- m.items.forEach(it=>{const r=document.createElement('div');r.className='it';it.mode=it.mode||'g';if(it.q==null)it.q=it.g;
-  r.innerHTML=`<span>${it.f.n}</span><b class="kc"></b><button class="s">✕</button><div class="qty"><input type="number" min="0" step="any" value="${it.q}"><select><option value="g">g</option><option value="mg">mg</option><option value="ml">ml</option><option value="un">unidades</option></select><input class="dd" type="number" min="0" step="any" style="display:none"><small class="eqg"></small></div><div class="nut"></div>`;
+ m.items.forEach(it=>{
+  const rm=()=>{const i=m.items.indexOf(it);if(it.alt)m.items[i]=it.alt;else m.items.splice(i,1);refresh(m)};
+  if(!it.alt){box.appendChild(rowEl(it,m,rm,true));return}
+  const w=document.createElement('div'),bd=document.createElement('div'),df=document.createElement('div');w.className='orrow';
+  bd.className='orb2';bd.textContent='OU';df.className='ordiff';it._df=df;
+  w.append(rowEl(it,m,rm,false),bd,rowEl(it.alt,m,()=>{delete it.alt;refresh(m)},false),df);box.appendChild(w)});
+ tot(m);
+}
+function rowEl(it,m,onX,showOr){
+ const r=document.createElement('div');r.className='it';it.mode=it.mode||'g';if(it.q==null)it.q=it.g;
+  r.innerHTML=`<span>${esc(it.f.n)}</span><b class="kc"></b><button class="s" title="Remover">✕</button><div class="qty"><input type="number" min="0" step="any" value="${it.q}"><select><option value="g">g</option><option value="mg">mg</option><option value="ml">ml</option><option value="un">unidades</option></select><input class="dd" type="number" min="0" step="any" style="display:none"><small class="eqg"></small>${showOr?'<button class="s orb" title="Adicionar alimento alternativo (OU)">+ OU</button>':''}</div><div class="nut"></div>`;
   let op=false;r.addEventListener('toggle',e=>op=e.target.open,true);const nu=r.querySelector('.nut');
   const kc=r.querySelector('.kc'),upd=()=>{kc.textContent=Math.round(it.f.k*it.g/100)+' kcal';const f=it.f,g=it.g,x=g/100;
-   nu.innerHTML=`P ${f1(f.p*x)} g · C ${f1(f.c*x)} g · L ${f1(f.l*x)} g${fib(f,g)}`+(f.v?`<details${op?' open':''}><summary>Todos os nutrientes (TACO)</summary><div class="ng">${GROUPS.flatMap(G=>G[1]).map(l=>`<span>${l}: <b>${ct(f,l,g)}</b></span>`).join('')}</div></details>`:' · <i>demais nutrientes não informados</i>')};upd();
+   nu.innerHTML=`P ${f1(f.p*x)} g · C ${f1(f.c*x)} g · L ${f1(f.l*x)} g${fib(f,g)}`+(f.v?`<details${op?' open':''}><summary>Todos os nutrientes (TACO)</summary><div class="ng">${GROUPS.flatMap(G=>G[1]).map(l=>`<span>${l}: <b>${ct(f,l,g)}</b></span>`).join('')}</div></details>`:' · <i>demais nutrientes não informados</i>')};
   const qi=r.querySelector('.qty input'),dd=r.querySelector('.dd'),se=r.querySelector('select'),eq=r.querySelector('.eqg');
   se.value=it.mode;dd.value=it.d||'';
   const cg=()=>{it.mode=se.value;it.q=num(qi.value);it.d=num(dd.value)||undefined;
@@ -289,18 +321,27 @@ function refresh(m){
    it.g=toG(it);eq.textContent=it.mode=='g'?'':'= '+fr(it.g)+' g'};
   cg();upd();
   qi.oninput=dd.oninput=se.onchange=()=>{cg();upd();tot(m)};
-  r.querySelector('button').onclick=()=>{m.items.splice(m.items.indexOf(it),1);refresh(m)};
-  box.appendChild(r)});
- tot(m);
+  r.querySelector('button').onclick=onX;
+  if(showOr)r.querySelector('.orb').onclick=()=>{m.pend=it;pendUi(m);m.el.querySelector('.q').focus()};
+ return r;
 }
 const sum=items=>items.reduce((a,i)=>{const x=i.g/100;a.k+=i.f.k*x;a.p+=i.f.p*x;a.c+=i.f.c*x;a.l+=i.f.l*x;return a},{k:0,p:0,c:0,l:0});
-function tot(m){const t=sum(m.items);m.el.querySelector('.mt').innerHTML=`<b>${Math.round(t.k)} kcal</b> · P ${f1(t.p)}g · C ${f1(t.c)}g · L ${f1(t.l)}g`;dayTotals()}
+function tot(m){
+ const t=sum(m.items),L=x=>`<b>${Math.round(x.k)} kcal</b> · P ${f1(x.p)}g · C ${f1(x.c)}g · L ${f1(x.l)}g`,el=m.el.querySelector('.mt');
+ if(m.items.some(i=>i.alt)){const u=sum(pick(m.items,1));el.innerHTML=`Opção 1: ${L(t)}<br>Opção 2: ${L(u)}<br>Diferença (2 − 1): ${dif(u,t)}`}else el.innerHTML=L(t);
+ m.items.forEach(i=>{if(i.alt&&i._df)i._df.innerHTML=`${esc(i.alt.f.n)} − ${esc(i.f.n)}: ${dif(sum([i.alt]),sum([i]))}`});
+ dayTotals()}
 function dayTotals(){
  meals.forEach(updGoal);
- const sp=meals.reduce((a,x)=>a+x.pct,0),dp=sp-100;
+ const sp=groups().reduce((a,g)=>a+g[0].pct,0),dp=sp-100;
  $('pctBox').innerHTML=meals.length?`Soma dos percentuais das refeições: <b>${r1b(sp)}%</b> — `+(Math.abs(dp)<0.05?'<span style="color:#0b8f45">completo (100%)</span>':dp>0?`<span style="color:#c0392b">acima de 100% (+${r1b(dp)}%)</span>`:`<span style="color:#d68910">abaixo de 100% (faltam ${r1b(-dp)}%)</span>`):'Adicione refeições e defina o % de kcal de cada uma.';
- const t=sum(meals.flatMap(m=>m.items)),k=num($('mk').value);
- $('dayTot').innerHTML=`<b>Total do dia: ${Math.round(t.k)} kcal</b>${k?` (meta ${k})`:''} · P ${f1(t.p)}g/${num($('mp').value)}g · C ${f1(t.c)}g/${num($('mc').value)}g · L ${f1(t.l)}g/${num($('ml').value)}g`;
+ const k=num($('mk').value),t0=sum(scen(0));
+ let h=`<b>Total do dia: ${Math.round(t0.k)} kcal</b>${k?` (meta ${k})`:''} · P ${f1(t0.p)}g/${num($('mp').value)}g · C ${f1(t0.c)}g/${num($('mc').value)}g · L ${f1(t0.l)}g/${num($('ml').value)}g`;
+ if(hasOr()){const t1=sum(scen(1)),R=Math.round,M=x=>`P ${f1(x.p)}g · C ${f1(x.c)}g · L ${f1(x.l)}g`;
+  h=`<b>Opção 1 (primeiras opções): ${R(t0.k)} kcal</b> · ${M(t0)}<br><b>Opção 2 (alternativas OU): ${R(t1.k)} kcal</b> · ${M(t1)}<br>Diferença (2 − 1): ${dif(t1,t0)}`+(k?`<br><small>Meta ${k} kcal → opção 1: ${sg(R(t0.k-k))} kcal · opção 2: ${sg(R(t1.k-k))} kcal</small>`:'');
+  const gl=groups().filter(g=>g.length>1).map(g=>`${g.map(x=>`${esc(x.name)} (${R(sum(x.items).k)} kcal)`).join(' <b>OU</b> ')} → diferença ${dif(sum(g[1].items),sum(g[0].items))}`);
+  if(gl.length)h+='<br><small>'+gl.join('<br>')+'</small>'}
+ $('dayTot').innerHTML=h;
 }
 $('addMeal').onclick=addMeal;
 
@@ -315,10 +356,11 @@ const fr=n=>n.toLocaleString('pt-BR',{maximumFractionDigits:2});
 const cn=(f,lb,g)=>f.v?(typeof f.v[lb]==='number'?f.v[lb]*g/100:null):(MK[lb]?f[MK[lb]]*g/100:null);
 // texto exibido: número proporcional à quantidade; Tr/NA/* como na TACO; manual = "Não informado"
 const ct=(f,lb,g)=>{const n=cn(f,lb,g);if(n!=null)return fr(n);if(!f.v)return NI;const t=String(f.v[lb]==null?'':f.v[lb]).trim();return t||'-'};
-function gTable(doc,y,ti,lb,items,only){
- const body=only?[]:items.map(i=>[i.f.n,i.g,...lb.map(l=>ct(i.f,l,i.g))]);
- const tot=lb.map(l=>{const v=items.map(i=>cn(i.f,l,i.g)).filter(x=>x!=null);return{content:v.length?fr(v.reduce((a,b)=>a+b,0)):'-',styles:{fontStyle:'bold'}}});
- body.push([{content:only?'Total do dia':'Total',styles:{fontStyle:'bold'}},'',...tot]);
+function gTable(doc,y,ti,lb,rows,only,L0,L1){
+ const body=rows.map(i=>[(i._or?'OU ':'')+i.f.n,i.g,...lb.map(l=>ct(i.f,l,i.g))]);
+ const tr=(L,t)=>[{content:t,styles:{fontStyle:'bold'}},'',...lb.map(l=>{const v=L.map(i=>cn(i.f,l,i.g)).filter(x=>x!=null);return{content:v.length?fr(v.reduce((a,b)=>a+b,0)):'-',styles:{fontStyle:'bold'}}})];
+ const b=only?'Total do dia':'Total';
+ body.push(tr(L0,L1?b+' (opção 1)':b));if(L1)body.push(tr(L1,b+' (opção 2)'));
  doc.autoTable({startY:y+1,head:[[ti,'Qtd (g)',...lb]],body,headStyles:{fillColor:[11,143,69],fontSize:7},styles:{fontSize:7.5,cellPadding:1.5},columnStyles:{0:{cellWidth:62}}});
  return doc.lastAutoTable.finalY;
 }
@@ -345,18 +387,18 @@ function makePDF(full,prev){
     headStyles:{fillColor:[11,143,69]},styles:{fontSize:9},columnStyles:{0:{cellWidth:80}}});
    y=doc.lastAutoTable.finalY+4;
   }else{
-   need(45);doc.setFontSize(13);doc.setFont(undefined,'bold');doc.text(m.name,14,y);doc.setFont(undefined,'normal');y+=2;
+   need(45);doc.setFontSize(13);doc.setFont(undefined,'bold');doc.text((m.or?'OU — ':'')+m.name,14,y);doc.setFont(undefined,'normal');y+=2;
    if(!m.items.length){doc.setFontSize(9);doc.text('Nenhum alimento adicionado.',14,y+5);y+=10}
-   else GROUPS.forEach(([ti,lb])=>{need(30);y=gTable(doc,y,ti,lb,m.items,false)+3});
+   else GROUPS.forEach(([ti,lb])=>{need(30);y=gTable(doc,y,ti,lb,m.items.flatMap(i=>i.alt?[i,{...i.alt,_or:1}]:[i]),false,pick(m.items,0),m.items.some(i=>i.alt)?pick(m.items,1):null)+3});
   }
   if(m.obs.trim()){doc.setFontSize(9);const ls=doc.splitTextToSize('Obs.: '+m.obs,W-28);
    need(ls.length*4+4);doc.text(ls,14,y);y+=ls.length*4+2}
   y+=4;need(20);
  });
- const d=sum(meals.flatMap(m=>m.items)),all=meals.flatMap(m=>m.items);
+ const d=sum(scen(0)),all=scen(0);
  if(full&&all.length){need(45);doc.setFontSize(13);doc.setFont(undefined,'bold');doc.text('Total do dia',14,y);doc.setFont(undefined,'normal');y+=2;
-  GROUPS.forEach(([ti,lb])=>{need(25);y=gTable(doc,y,ti,lb,all,true)+3})}
- need(14);doc.setFontSize(12);doc.text(`Total do dia: ${Math.round(d.k)} kcal | P ${f1(d.p)}g | C ${f1(d.c)}g | L ${f1(d.l)}g`,14,y);y+=8;
+  GROUPS.forEach(([ti,lb])=>{need(25);y=gTable(doc,y,ti,lb,[],true,scen(0),hasOr()?scen(1):null)+3})}
+ need(14);doc.setFontSize(12);doc.text(`Total do dia${hasOr()?' (opção 1)':''}: ${Math.round(d.k)} kcal | P ${f1(d.p)}g | C ${f1(d.c)}g | L ${f1(d.l)}g`,14,y);y+=8;
  if(full){doc.setFontSize(8);const nt=doc.splitTextToSize('Valores da TACO (por 100 g) recalculados para a quantidade informada. Tr = traço; NA = não aplicável; * = análise sendo reavaliada; "-" = análise não solicitada (em branco na TACO). "Não informado" = alimento adicionado manualmente. Valores não numéricos não entram nas somas.',W-28);need(nt.length*4);doc.text(nt,14,y)}
  if(prev)return doc;doc.save(`dieta${full?'-completa':''}-${($('nome').value||'paciente').replace(/\s+/g,'_')}.pdf`);
 }
@@ -395,9 +437,10 @@ function normalize(){const t=meals.reduce((a,x)=>a+x.pct,0);meals.forEach(x=>x.p
 function setPct(m,v){m.pct=Math.max(0,Math.min(100,v))}
 function updGoal(m){
  if(!m.el)return;
- const k=num($('mk').value),meta=k*m.pct/100,t=sum(m.items).k,pi=m.el.querySelector('.pct');
+ const k=num($('mk').value),meta=k*m.pct/100,t=sum(m.items).k,t2=sum(pick(m.items,1)).k,pi=m.el.querySelector('.pct');
  if(document.activeElement!==pi)pi.value=r1b(m.pct);
- m.el.querySelector('.gk').innerHTML=k?`Meta: <b>${Math.round(meta)} kcal</b> · Montado: ${Math.round(t)} · `+(t>meta+0.5?`<span style="color:#c0392b">excedeu ${Math.round(t-meta)} kcal</span>`:`faltam ${Math.round(meta-t)} kcal`):'Defina a meta de kcal na aba Paciente';
+ const mx=Math.max(t,t2),R=Math.round,two=Math.abs(t-t2)>=0.5;
+ m.el.querySelector('.gk').innerHTML=k?`Meta: <b>${R(meta)} kcal</b> · Montado: ${two?`${R(t)} kcal (opção 1) · ${R(t2)} kcal (opção 2)`:R(t)} · `+(mx>meta+0.5?`<span style="color:#c0392b">${two?'a maior opção excede':'excedeu'} ${R(mx-meta)} kcal</span>`:`faltam ${R(meta-mx)} kcal`):'Defina a meta de kcal na aba Paciente';
 }
 $('eq').onclick=()=>{equalize();dayTotals()};
 function simplePDF(prev){
@@ -416,9 +459,10 @@ function simplePDF(prev){
   doc.setFont(undefined,'bold');doc.setTextColor(...G);doc.text('Orientações gerais',20,y+6);
   doc.setFont(undefined,'normal');doc.setTextColor(60);doc.text(ls,20,y+12);y+=h+8}
  meals.forEach(m=>{
+  if(m.or){if(y>H-50){doc.addPage();y=20}doc.setFontSize(12);doc.setFont(undefined,'bold');doc.setTextColor(...G);doc.text('— OU —',W/2,y+2,{align:'center'});y+=8}
   doc.autoTable({startY:y,theme:'plain',pageBreak:'avoid',margin:{left:14,right:14,bottom:20},
    head:[[m.name,'Quantidade']],
-   body:m.items.length?m.items.map(i=>[i.f.n,qtxt(i)]):[[{content:'Sem alimentos nesta refeição',colSpan:2,styles:{fontStyle:'italic',textColor:150}}]],
+   body:m.items.length?m.items.map(i=>i.alt?[i.f.n+'\nOU '+i.alt.f.n,qtxt(i)+'\nOU '+qtxt(i.alt)]:[i.f.n,qtxt(i)]):[[{content:'Sem alimentos nesta refeição',colSpan:2,styles:{fontStyle:'italic',textColor:150}}]],
    headStyles:{fillColor:G,textColor:255,fontSize:12,fontStyle:'bold',cellPadding:{top:3,bottom:3,left:4,right:4}},
    bodyStyles:{fontSize:10.5,textColor:50,cellPadding:{top:2.6,bottom:2.6,left:4,right:4},lineColor:[225,225,225],lineWidth:{bottom:0.2}},
    alternateRowStyles:{fillColor:[246,251,248]},columnStyles:{1:{cellWidth:48,halign:'right'}},
@@ -441,8 +485,10 @@ $('pvm').onchange=$('pvr').onclick=preview;$('pvd').onclick=()=>makePDF($('pvm')
 const FIELDS=['nome','nasc','alt','peso','sexo','fat','form','mm','mk','pp','pc','pl','mp','mc','ml','obsG','metaN','pa','ps','pd'];
 const esc=t=>String(t).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 let curId=null;
+const sI=i=>({n:i.f.n,g:i.g,mo:i.mode,q:i.q,d:i.d,m:i.f.manual?i.f:undefined,alt:i.alt?sI(i.alt):undefined});
+const lI=i=>({f:foods.find(f=>norm(f.n)==norm(i.n))||i.m||{n:i.n,k:0,p:0,c:0,l:0,manual:true},g:i.g,mode:i.mo,q:i.q,d:i.d,alt:i.alt?lI(i.alt):undefined});
 const snap=()=>({fields:Object.fromEntries(FIELDS.map(i=>[i,$(i).value])),res:$('res').innerHTML,calc,
- meals:meals.map(m=>({name:m.name,obs:m.obs,pct:m.pct,items:m.items.map(i=>({n:i.f.n,g:i.g,mo:i.mode,q:i.q,d:i.d,m:i.f.manual?i.f:undefined}))}))});
+ meals:meals.map(m=>({name:m.name,obs:m.obs,pct:m.pct,or:!!m.or,items:m.items.map(sI)}))});
 async function saveDiet(){
  const nome=$('nome').value.trim();if(!nome)return alert('Informe o nome do paciente na aba Paciente.');
  try{
@@ -461,8 +507,9 @@ function loadDiet(r){
  $('meals').innerHTML='';meals.length=0;
  D.meals.forEach(x=>{addMeal();const m=meals[meals.length-1];m.name=x.name;m.obs=x.obs;
   m.el.querySelector('.mname').value=x.name;m.el.querySelector('.obs').value=x.obs;
-  m.items=x.items.map(i=>({f:foods.find(f=>norm(f.n)==norm(i.n))||i.m||{n:i.n,k:0,p:0,c:0,l:0,manual:true},g:i.g,mode:i.mo,q:i.q,d:i.d}));refresh(m)});
+  m.items=x.items.map(lI);m.or=!!x.or;refresh(m)});
  D.meals.forEach((x,i)=>meals[i].pct=x.pct);if(meals.some(m=>m.pct==null||isNaN(m.pct)))equalize();
+ if(meals[0]&&meals[0].or)meals[0].or=false;meals.forEach(orUi);
  curId=r.id;macros();document.querySelector('nav button[data-t=b]').click();
 }
 async function listDiets(){
